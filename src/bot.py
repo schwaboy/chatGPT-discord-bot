@@ -71,7 +71,8 @@ def run_discord_bot():
                         ProviderType.OPENAI: "🟢",
                         ProviderType.CLAUDE: "🟣",
                         ProviderType.GEMINI: "🔵",
-                        ProviderType.GROK: "⚫"
+                        ProviderType.GROK: "⚫",
+                        ProviderType.PERPLEXITY: "🧠"
                     }
                     
                     options.append(discord.SelectOption(

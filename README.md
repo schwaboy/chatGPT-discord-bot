@@ -6,7 +6,7 @@
 > [!IMPORTANT]
 >
 > **Major Refactor (2025/07):**
-> - **5 AI Providers**: Free (g4f), OpenAI, Claude, Gemini, Grok
+> - **6 AI Providers**: Free (g4f), OpenAI, Claude, Gemini, Grok, Perplexity
 > - **No Cookie Authentication**: Removed unreliable cookie-based auth for free providers
 
 ### Chat
@@ -15,10 +15,10 @@
 
 # Setup
 ## Prerequisites
-* **Python 3.9 or later**
+* **Python 3.12 or later** (Python 3.14+ has deprecation warnings)
 * **Rename the file `.env.example` to `.env`**
 * Running `pip3 install -r requirements.txt` to install the required dependencies
-* Optional: API keys for premium providers (OpenAI, Claude, Gemini, Grok)
+* Optional: API keys for premium providers (OpenAI, Claude, Gemini, Grok, Perplexity)
 ---
 ## Step 1: Create a Discord bot
 
@@ -88,6 +88,10 @@ No configuration required
 1. Get API key from https://x.ai/api
 2. Add to `.env`: `GROK_KEY=your_api_key_here`
 
+#### Perplexity Pro
+1. Get API key from https://www.perplexity.ai/settings/api
+2. Add to `.env`: `PERPLEXITY_KEY=your_api_key_here`
+
 Use `/provider` command in Discord to switch between available providers
 
 ## Image Generation
@@ -132,7 +136,7 @@ Image generation is now integrated with the provider system:
 
 ### Core Commands
 * `/chat [message]` - Chat with the current AI provider
-* `/provider` - Switch between AI providers (Free, OpenAI, Claude, Gemini, Grok)
+* `/provider` - Switch between AI providers (Free, OpenAI, Claude, Gemini, Grok, Perplexity)
 * `/draw [prompt] [model]` - Generate images with specified provider
 * `/reset` - Clear conversation history
 * `/help` - Display all available commands

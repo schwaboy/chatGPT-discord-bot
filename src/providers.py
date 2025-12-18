@@ -24,6 +24,7 @@ class ProviderType(Enum):
     CLAUDE = "claude"
     GEMINI = "gemini"
     GROK = "grok"
+    PERPLEXITY = "perplexity"
 
 
 @dataclass
@@ -70,22 +71,17 @@ class FreeProvider(BaseProvider):
         super().__init__()
         
         # ONLY use providers that work 100% without ANY authentication
-        # These have been tested and verified to work in 2025
+        # These have been tested and verified (Dec 2025) after upgrading g4f to 6.7.1
         self.working_providers = [
             {
-                'provider': g4f.Provider.Blackbox,
-                'models': ['blackboxai'],
-                'name': 'Blackbox'
+                'provider': g4f.Provider.MetaAI,
+                'models': ['gpt-3.5-turbo', 'meta-llama/Meta-Llama-3.1-70B-Instruct'],
+                'name': 'MetaAI'
             },
             {
-                'provider': g4f.Provider.Chatai, 
-                'models': ['gpt-3.5-turbo', 'gpt-4'],
-                'name': 'Chatai'
-            },
-            {
-                'provider': g4f.Provider.CohereForAI_C4AI_Command,
-                'models': ['command-r-plus', 'command-r'],
-                'name': 'CohereForAI'
+                'provider': g4f.Provider.Gemini,
+                'models': ['gpt-3.5-turbo', 'gemini-2.0-flash-exp'],
+                'name': 'Gemini'
             }
         ]
         
@@ -198,15 +194,12 @@ class FreeProvider(BaseProvider):
         """Return only VERIFIED working models - no dead models!"""
         models = [
             # VERIFIED WORKING models from tested providers
-            ModelInfo("blackboxai", ProviderType.FREE, "Blackbox AI - reliable free model"),
-            ModelInfo("gpt-3.5-turbo", ProviderType.FREE, "GPT-3.5 via Chatai - tested working"),
-            ModelInfo("gpt-4", ProviderType.FREE, "GPT-4 via Chatai - tested working"),
-            ModelInfo("command-r-plus", ProviderType.FREE, "Cohere Command R+ - tested working"),
-            ModelInfo("command-r", ProviderType.FREE, "Cohere Command R - tested working"),
+            ModelInfo("gpt-3.5-turbo", ProviderType.FREE, "MetaAI / Gemini proxy"),
+            ModelInfo("meta-llama/Meta-Llama-3.1-70B-Instruct", ProviderType.FREE, "MetaAI free endpoint"),
+            ModelInfo("gemini-2.0-flash-exp", ProviderType.FREE, "Gemini experimental via g4f"),
         ]
         
-        # Note: Removed all dead models like gpt-4o-mini, llama-3.1-70b, claude-3-haiku
-        # These were causing failures. Only include models that actually work.
+        # Note: Removed dead/unstable models. Only include models that responded in Dec 2025 tests.
         
         return models
     
@@ -438,6 +431,51 @@ class GrokProvider(BaseProvider):
         return False
 
 
+class PerplexityProvider(BaseProvider):
+    """Perplexity Pro API provider (OpenAI-compatible)"""
+
+    def __init__(self, api_key: str):
+        super().__init__(api_key)
+        # Perplexity exposes an OpenAI-compatible chat API
+        self.client = AsyncOpenAI(
+            api_key=api_key,
+            base_url="https://api.perplexity.ai"
+        )
+
+    async def chat_completion(self, messages: List[Dict[str, str]], model: str, **kwargs) -> str:
+        try:
+            if not model:
+                model = "sonar-pro"
+
+            request_kwargs = {**kwargs}
+            request_kwargs.setdefault("temperature", 0.7)
+            request_kwargs.setdefault("max_tokens", 4096)
+
+            response = await self.client.chat.completions.create(
+                model=model,
+                messages=messages,
+                **request_kwargs
+            )
+            return response.choices[0].message.content
+        except Exception as e:
+            logger.error(f"Perplexity provider error: {e}")
+            raise
+
+    async def generate_image(self, prompt: str, model: Optional[str] = None, **kwargs) -> str:
+        raise NotImplementedError("Perplexity does not support image generation")
+
+    def get_available_models(self) -> List[ModelInfo]:
+        return [
+            ModelInfo("sonar-pro", ProviderType.PERPLEXITY, "Flagship model with online search"),
+            ModelInfo("sonar", ProviderType.PERPLEXITY, "Fast general model with search"),
+            ModelInfo("sonar-reasoning", ProviderType.PERPLEXITY, "Reasoning tuned with search"),
+            ModelInfo("sonar-reasoning-pro", ProviderType.PERPLEXITY, "Premium reasoning with search"),
+        ]
+
+    def supports_image_generation(self) -> bool:
+        return False
+
+
 class ProviderManager:
     """Manages all AI providers"""
     
@@ -473,7 +511,8 @@ class ProviderManager:
             ("OPENAI_KEY", ProviderType.OPENAI, OpenAIProvider, r'^sk-[a-zA-Z0-9]{20,}$'),  # More flexible OpenAI key format
             ("CLAUDE_KEY", ProviderType.CLAUDE, ClaudeProvider, r'^sk-ant-[a-zA-Z0-9-]{50,}$'),  # More flexible Claude key
             ("GEMINI_KEY", ProviderType.GEMINI, GeminiProvider, r'^[a-zA-Z0-9_-]{20,}$'),  # More flexible Gemini key
-            ("GROK_KEY", ProviderType.GROK, GrokProvider, r'^xai-[a-zA-Z0-9-]{20,}$')  # More flexible Grok key
+            ("GROK_KEY", ProviderType.GROK, GrokProvider, r'^xai-[a-zA-Z0-9-]{20,}$'),  # More flexible Grok key
+            ("PERPLEXITY_KEY", ProviderType.PERPLEXITY, PerplexityProvider, r'^pplx-[a-zA-Z0-9_-]{20,}$')  # Perplexity Pro
         ]
         
         for env_key, provider_type, provider_class, pattern in api_configs:

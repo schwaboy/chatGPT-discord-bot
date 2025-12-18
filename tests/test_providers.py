@@ -6,7 +6,7 @@ import os
 from src.providers import (
     ProviderType, ModelInfo, BaseProvider, 
     FreeProvider, OpenAIProvider, ClaudeProvider,
-    GeminiProvider, GrokProvider, ProviderManager
+    GeminiProvider, GrokProvider, PerplexityProvider, ProviderManager
 )
 
 
@@ -50,7 +50,7 @@ class TestFreeProvider:
         assert len(models) > 0
         # Check for actual models that we know are available
         model_names = [model.name for model in models]
-        assert any(name in model_names for name in ["blackboxai", "gpt-3.5-turbo", "gpt-4"])
+        assert any(name in model_names for name in ["gpt-3.5-turbo", "meta-llama/Meta-Llama-3.1-70B-Instruct", "gemini-2.0-flash-exp"])
         # Note: Image generation is disabled for reliability, so don't test for it
     
     def test_supports_image_generation(self):
@@ -82,6 +82,28 @@ class TestOpenAIProvider:
         assert any(model.name == "gpt-4o" for model in models)
         assert any(model.name == "dall-e-3" for model in models)
         assert any(model.supports_image_generation for model in models)
+
+
+class TestPerplexityProvider:
+    @pytest.mark.asyncio
+    async def test_chat_completion(self):
+        provider = PerplexityProvider("test-key")
+
+        mock_response = Mock()
+        mock_response.choices = [Mock(message=Mock(content="Perplexity response"))]
+
+        with patch.object(provider.client.chat.completions, 'create', new=AsyncMock(return_value=mock_response)):
+            messages = [{"role": "user", "content": "Hello"}]
+            response = await provider.chat_completion(messages, "sonar-pro")
+
+            assert response == "Perplexity response"
+
+    def test_get_available_models(self):
+        provider = PerplexityProvider("test-key")
+        models = provider.get_available_models()
+
+        assert any(model.name == "sonar-pro" for model in models)
+        assert all(model.supports_image_generation is False for model in models)
 
 
 class TestClaudeProvider:
