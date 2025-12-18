@@ -47,9 +47,10 @@ async def main():
         print(f"g4f installed (version unknown)")
     print(f"Python version: {sys.version}")
     
-    # Test the providers configured in FreeProvider
+    # Match the host-side probe exactly
     providers = [
         (g4f.Provider.MetaAI, "MetaAI", "gpt-3.5-turbo"),
+        (g4f.Provider.MetaAI, "MetaAI", "meta-llama/Meta-Llama-3.1-70B-Instruct"),
         (g4f.Provider.Gemini, "Gemini", "gemini-2.0-flash-exp"),
     ]
     
