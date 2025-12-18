@@ -53,12 +53,21 @@ def setup_logger(module_name:str) -> logging.Logger:
     logger.addHandler(console_handler)
 
     if os.getenv("LOGGING") == "True":  # Check if logging is enabled
-        # Use /tmp for Docker read-only filesystem compatibility
-        log_dir = "/tmp" if os.path.exists("/tmp") else os.path.abspath(f"{__file__}/../../")
+        # Allow overriding the log destination for host bind mounts
         log_name = 'chatgpt_discord_bot.log'
-        log_path = os.path.join(log_dir, log_name)
+        log_file_override = os.getenv("LOG_FILE")
+        log_dir_override = os.getenv("LOG_DIR")
+
+        if log_file_override:
+            log_path = os.path.expanduser(log_file_override)
+        else:
+            # Use /tmp for Docker read-only filesystem compatibility unless overridden
+            log_dir = os.path.expanduser(log_dir_override) if log_dir_override else None
+            log_dir = log_dir or ("/tmp" if os.path.exists("/tmp") else os.path.abspath(f"{__file__}/../../"))
+            log_path = os.path.join(log_dir, log_name)
         
         try:
+            os.makedirs(os.path.dirname(log_path) or ".", exist_ok=True)
             # create local log handler
             log_handler = logging.handlers.RotatingFileHandler(
                 filename=log_path,
