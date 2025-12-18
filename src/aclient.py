@@ -35,6 +35,16 @@ class DiscordClient(discord.Client):
             self.provider_manager.set_current_provider(ProviderType.FREE)
         
         self.current_model = os.getenv("DEFAULT_MODEL", "auto")
+
+        # Image provider preferences (optional override)
+        self.image_provider: Optional[ProviderType] = None
+        self.image_model: Optional[str] = os.getenv("IMAGE_MODEL") or None
+        env_image_provider = os.getenv("IMAGE_PROVIDER")
+        if env_image_provider:
+            try:
+                self.image_provider = ProviderType(env_image_provider.lower())
+            except ValueError:
+                logger.warning(f"Invalid IMAGE_PROVIDER {env_image_provider}, ignoring")
         
         # Conversation management
         self.conversation_history = []
@@ -176,20 +186,68 @@ class DiscordClient(discord.Client):
                     self.conversation_history.append({'role': 'assistant', 'content': error_response})
                     return error_response
             else:
-                # Already using free provider, return error
-                error_response = "❌ The free provider is currently unavailable. Please try again later."
+                # Already using free provider, return error with more detail
+                logger.error(f"Free provider failed with: {e}")
+                error_response = "❌ The free provider is having issues. Please switch to a paid provider (OpenAI, Claude, Gemini, Grok, Perplexity) using `/provider`."
                 self.conversation_history.append({'role': 'assistant', 'content': error_response})
                 return error_response
     
-    async def generate_image(self, prompt: str, model: Optional[str] = None) -> str:
-        """Generate image using current provider"""
-        provider = self.provider_manager.get_provider()
+    async def generate_image(
+        self,
+        prompt: str,
+        model: Optional[str] = None,
+        provider_type: Optional[ProviderType] = None,
+    ) -> str:
+        """Generate image using requested provider, stored preference, or fallback to paid image providers."""
+
+        # Choose provider priority: explicit param > stored preference > current provider
+        chosen_provider_type = provider_type or self.image_provider
+        if chosen_provider_type:
+            provider = self.provider_manager.get_provider(chosen_provider_type)
+        else:
+            provider = self.provider_manager.get_provider()
+
+        model_to_use = model or self.image_model
         
         if not provider.supports_image_generation():
-            # Fallback to free provider for image generation
-            provider = self.provider_manager.get_provider(ProviderType.FREE)
+            # Candidates: stored preference (if not used), env preference, then paid image providers
+            candidates: List[ProviderType] = []
+
+            # If we had an explicit provider_type that failed images, drop to next options
+            if not provider_type and self.image_provider:
+                candidates.append(self.image_provider)
+
+            # Env preference already loaded into self.image_provider; include if not present
+            preferred_env = os.getenv("IMAGE_PROVIDER", "").strip().lower()
+            try:
+                env_pt = ProviderType(preferred_env) if preferred_env else None
+                if env_pt and env_pt not in candidates:
+                    candidates.append(env_pt)
+            except ValueError:
+                pass
+
+            # Paid providers that support images
+            for p in [ProviderType.OPENAI, ProviderType.GEMINI]:
+                if p not in candidates:
+                    candidates.append(p)
+
+            for candidate in candidates:
+                try:
+                    fallback_provider = self.provider_manager.get_provider(candidate)
+                    if fallback_provider.supports_image_generation():
+                        logger.info(f"Falling back to {candidate.value} for image generation")
+                        return await fallback_provider.generate_image(prompt, model_to_use)
+                except ValueError:
+                    continue
+
+            raise NotImplementedError("Image generation requires OpenAI or Gemini. Add OPENAI_KEY or GEMINI_KEY to .env or set IMAGE_PROVIDER.")
         
-        return await provider.generate_image(prompt, model)
+        return await provider.generate_image(prompt, model_to_use)
+
+    def set_image_provider(self, provider_type: Optional[ProviderType], model: Optional[str] = None):
+        self.image_provider = provider_type
+        if model:
+            self.image_model = model
     
     def reset_conversation_history(self):
         """Reset conversation and persona"""

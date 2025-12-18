@@ -98,21 +98,29 @@ Use `/provider` command in Discord to switch between available providers
 
 <img src="https://i.imgur.com/Eo1ZzKk.png" width="300" alt="image">
 
-Image generation is now integrated with the provider system:
+Image generation is separate from chat and can use its own provider:
+
+- Preferred image provider can be set via `.env`: `IMAGE_PROVIDER=openai` or `IMAGE_PROVIDER=gemini` (optional `IMAGE_MODEL=`)
+- Slash command: `/imageprovider` lets you pick the image provider/model interactively
+- `/draw` accepts optional `provider` and `model` arguments to override for one request
+
+Acceptable values for `IMAGE_PROVIDER`: `openai`, `gemini`.
 
 ### OpenAI DALL-E 3
 - Requires OpenAI API key
 - High-quality image generation
-- Use `/draw [prompt] openai`
+- Set `IMAGE_PROVIDER=openai` (and optionally `IMAGE_MODEL=dall-e-3`) or use `/imageprovider`
+- One-off: `/draw prompt: <text> provider: openai model: dall-e-3`
 
 ### Google Gemini
 - Requires Gemini API key  
 - Free tier available
-- Use `/draw [prompt] gemini`
+- Set `IMAGE_PROVIDER=gemini` (and optionally `IMAGE_MODEL=imagen-3.0-generate-001`) or use `/imageprovider`
+- One-off: `/draw prompt: <text> provider: gemini model: imagen-3.0-generate-001`
 
 ### Fallback Options
-- If premium providers are unavailable, the bot will attempt to use free alternatives
-- Image generation capabilities vary by provider availability
+- Perplexity does **not** support images; when chat is set to Perplexity, images will route to the configured image provider
+- If no image-capable provider is configured, `/draw` will fail with guidance to add `OPENAI_KEY` or `GEMINI_KEY`
 
 ## Optional: Setup system prompt
 
@@ -137,7 +145,8 @@ Image generation is now integrated with the provider system:
 ### Core Commands
 * `/chat [message]` - Chat with the current AI provider
 * `/provider` - Switch between AI providers (Free, OpenAI, Claude, Gemini, Grok, Perplexity)
-* `/draw [prompt] [model]` - Generate images with specified provider
+* `/draw [prompt] [provider] [model]` - Generate images (provider/model optional overrides)
+* `/imageprovider` - Set the default image provider/model (independent from chat provider)
 * `/reset` - Clear conversation history
 * `/help` - Display all available commands
 

@@ -171,8 +171,104 @@ def run_discord_bot():
             ephemeral=True
         )
 
+    @discordClient.tree.command(name="imageprovider", description="Switch image generation provider and model")
+    async def imageprovider(interaction: discord.Interaction):
+        """Interactive image provider and model selection"""
+
+        class ProviderSelect(discord.ui.Select):
+            def __init__(self):
+                options = []
+                available_providers = discordClient.provider_manager.get_available_providers()
+                for provider_type in available_providers:
+                    provider = discordClient.provider_manager.get_provider(provider_type)
+                    if not provider.supports_image_generation():
+                        continue
+                    options.append(discord.SelectOption(
+                        label=provider_type.value.capitalize(),
+                        value=provider_type.value,
+                        emoji="🖼️",
+                        default=(provider_type == discordClient.image_provider)
+                    ))
+                if not options:
+                    options.append(discord.SelectOption(
+                        label="No image-capable providers available",
+                        value="none",
+                        description="Add OPENAI_KEY or GEMINI_KEY to use /draw",
+                        default=True
+                    ))
+                super().__init__(
+                    placeholder="Select an image provider...",
+                    options=options,
+                    min_values=1,
+                    max_values=1
+                )
+
+            async def callback(self, interaction: discord.Interaction):
+                if self.values[0] == "none":
+                    await interaction.response.send_message(
+                        "❌ No image-capable providers available. Add OPENAI_KEY or GEMINI_KEY.",
+                        ephemeral=True
+                    )
+                    return
+                selected_provider = ProviderType(self.values[0])
+                provider = discordClient.provider_manager.get_provider(selected_provider)
+                models = provider.get_available_models()
+
+                class ModelSelect(discord.ui.Select):
+                    def __init__(self):
+                        options = [
+                            discord.SelectOption(
+                                label="Default",
+                                value="",
+                                description="Use provider default",
+                                emoji="🎯"
+                            )
+                        ]
+                        for model in models[:24]:
+                            if not model.supports_image_generation:
+                                continue
+                            desc = model.description[:100] if model.description else ""
+                            options.append(discord.SelectOption(
+                                label=model.name,
+                                value=model.name,
+                                description=desc,
+                                emoji="🖼️"
+                            ))
+                        super().__init__(
+                            placeholder="Select an image model...",
+                            options=options,
+                            min_values=1,
+                            max_values=1
+                        )
+
+                    async def callback(self, interaction: discord.Interaction):
+                        selected_model = self.values[0] or None
+                        discordClient.set_image_provider(selected_provider, selected_model)
+                        await interaction.response.send_message(
+                            f"✅ Image provider set to **{selected_provider.value}** with model **{selected_model or 'default'}**",
+                            ephemeral=True
+                        )
+
+                model_view = discord.ui.View()
+                model_view.add_item(ModelSelect())
+
+                await interaction.response.send_message(
+                    f"Select a model for **{selected_provider.value}** image provider:",
+                    view=model_view,
+                    ephemeral=True
+                )
+
+        provider_view = discord.ui.View()
+        provider_view.add_item(ProviderSelect())
+
+        await interaction.response.send_message(
+            "Select an image provider:",
+            view=provider_view,
+            ephemeral=True
+        )
+
     @discordClient.tree.command(name="draw", description="Generate an image")
-    async def draw(interaction: discord.Interaction, *, prompt: str):
+    async def draw(interaction: discord.Interaction, *, prompt: str, provider: Optional[str] = None, model: Optional[str] = None):
         # Input validation
         if len(prompt) > 500:
             await interaction.response.send_message(
@@ -192,8 +288,20 @@ def run_discord_bot():
         await interaction.response.defer()
         
         try:
-            # Generate image using current provider
-            image_url = await discordClient.generate_image(prompt)
+            # Map provider string to ProviderType if provided
+            provider_type = None
+            if provider:
+                try:
+                    provider_type = ProviderType(provider.lower())
+                except ValueError:
+                    await interaction.followup.send(
+                        f"❌ Invalid provider '{provider}'. Use /provider to see available options.",
+                        ephemeral=True
+                    )
+                    return
+
+            # Generate image using selected provider (or fallback logic inside)
+            image_url = await discordClient.generate_image(prompt, model=model, provider_type=provider_type)
             
             embed = discord.Embed(
                 title="🎨 Generated Image",
