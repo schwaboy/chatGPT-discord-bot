@@ -41,7 +41,10 @@ async def test_provider(provider_class, provider_name, model):
 
 async def main():
     """Test all configured providers"""
-    print(f"g4f version: {g4f.__version__}")
+    try:
+        print(f"g4f version: {g4f.__version__}")
+    except AttributeError:
+        print(f"g4f installed (version unknown)")
     print(f"Python version: {sys.version}")
     
     # Test the providers configured in FreeProvider
