@@ -137,14 +137,15 @@ class FreeProvider(BaseProvider):
                     
             except Exception as e:
                 error_msg = str(e)
-                logger.warning(f"❌ {provider_info['name']} failed: {error_msg[:100]}...")
+                # Log full error for debugging container issues
+                logger.error(f"❌ {provider_info['name']} failed: {error_msg}", exc_info=True)
                 
                 # Don't give up immediately on certain errors
                 if attempt < len(self.working_providers) - 1:
                     continue
         
-        # If all providers fail, raise a meaningful error
-        raise Exception("All free providers failed. The service may be temporarily unavailable.")
+        # If all providers fail, raise a meaningful error with last exception
+        raise Exception(f"All free providers failed. Last error: {error_msg}")
     
     def _select_model(self, model: Optional[str]) -> str:
         """Select the best available model"""
